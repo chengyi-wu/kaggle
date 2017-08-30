@@ -91,7 +91,7 @@ class CIFAR_Model(Model):
 
         y_out = tf.contrib.layers.fully_connected(
             inputs=h_flat,
-            num_outputs=2,
+            num_outputs=10,
             activation_fn=None
         )
         
@@ -101,7 +101,7 @@ class CIFAR_Model(Model):
         y = self.labels_placeholder
 
         cross_entropy = tf.nn.softmax_cross_entropy_with_logits(
-            labels=tf.one_hot(y, 2),
+            labels=tf.one_hot(y, 10),
             logits=y_out
         )
         loss = tf.reduce_mean(cross_entropy)
@@ -130,7 +130,7 @@ class CIFAR_Model(Model):
         X_tr, Y_tr = training_set
         X_val, Y_val = validation_set
 
-        prog = Progbar(target=X_tr.shape[0] // batch_size)
+        prog = Progbar(target=1 + X_tr.shape[0] // batch_size)
 
         for i, (train_x, train_y) in enumerate(get_minibatches(X_tr, Y_tr, batch_size)):     
             loss, corr = self.train_on_batch(sess, train_x, train_y, True)
@@ -158,13 +158,7 @@ def get_minibatches(data, labels, minibatch_size, shuffle=True):
         yield data[idx], labels[idx]
 
 def main(debug=True):
-    CIFAR10_data = get_CIFAR10_data()
-
-    X_tr = CIFAR10_data['X_train']
-    Y_tr = CIFAR10_data['y_train']
-
-    X_val = CIFAR10_data['X_val']
-    Y_val = CIFAR10_data['y_val']
+    X_tr, Y_tr, X_val, Y_val, X_te, Y_te = get_CIFAR10_data()
 
     tf.reset_default_graph()
 
