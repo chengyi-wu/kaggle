@@ -20,49 +20,27 @@ def load_array(data_folder, fname):
     print("Loading from {0} ...".format(fname))
     return bcolz.open(fname)[:]
 
-def load_from_cache(data_folder, size):
-    X_tr = load_array(data_folder, 'train{0}_data.npz'.format(size))
-    Y_tr = load_array(data_folder, 'train{0}_label.npz'.format(size))
-    X_val = load_array(data_folder, 'val{0}_data.npz'.format(size))
-    Y_val = load_array(data_folder, 'val{0}_label.npz'.format(size))
-
-    X_te = load_array(data_folder, 'test{0}.npz'.format(size))
-
-    return X_tr, Y_tr, X_val, Y_val, X_te
-
-def save_to_cache(data_folder, size, X_tr, Y_tr, X_val, Y_val, X_te):
-    save_array(data_folder, 'train{0}_data.npz'.format(size), X_tr)
-    save_array(data_folder, 'train{0}_label.npz'.format(size), Y_tr)
-    save_array(data_folder, 'val{0}_data.npz'.format(size), X_val)
-    save_array(data_folder, 'val{0}_label.npz'.format(size), Y_val)
-    save_array(data_folder, 'test{0}.npz'.format(size), X_te)
-
-def load_data(data_folder, num_training_ratio=0.8, resize=(32, 32)):
+def load_data(data_folder, num_training_ratio=0.8):
     '''
-    load all of cats/dogs
+    load all of cats/dogs, defer the acutal image loading
     '''
-    try:
-        return load_from_cache(data_folder, size=resize[0])
-    except FileNotFoundError:
-        print("Cache not found, loading from raw images...")
-        pass
-
     training_folder = os.path.join(data_folder, "train")
     testing_folder = os.path.join(data_folder, "test")
 
     X = []
     Y = []
     for f in os.listdir(training_folder):
-        img = Image.open(os.path.join(training_folder, f)).resize(size=resize, resample=Image.ANTIALIAS)
-        X.append(np.asarray(img, dtype='float64'))
+        # img = Image.open(os.path.join(training_folder, f)).resize(size=resize, resample=Image.ANTIALIAS)
+        X.append(os.path.join(training_folder, f))
         Y.append(one_hot_encoding(f))
     X = np.array(X)
     Y = np.array(Y)
 
     X_te = []
     for f in os.listdir(testing_folder):
-        img = Image.open(os.path.join(testing_folder, f)).resize(size=resize, resample=Image.ANTIALIAS)
-        X_te.append(np.asarray(img, dtype='float64'))
+        # img = Image.open(os.path.join(testing_folder, f)).resize(size=resize, resample=Image.ANTIALIAS)
+        # X_te.append(np.asarray(img, dtype='float64'))
+        X_te.append(os.path.join(training_folder, f))
     X_te = np.array(X_te)
 
     num_training = int(num_training_ratio * len(X))
@@ -75,16 +53,39 @@ def load_data(data_folder, num_training_ratio=0.8, resize=(32, 32)):
     X_val = X[mask]
     Y_val = Y[mask]
 
-    mean_image = np.mean(X_tr, axis=0)
-
-    X_tr -= mean_image
-    X_val -= mean_image
-
-    X_te -= mean_image
-
-    save_to_cache(data_folder, resize[0],  X_tr, Y_tr, X_val, Y_val, X_te)
-
     return X_tr, Y_tr, X_val, Y_val, X_te
 
+def load_image(X, resize=(32,32), subtract_mean=True):
+    '''
+    Layze image loading
+    '''
+    data = [np.asarray(Image.open(f).resize(size=resize, resample=Image.ANTIALIAS), 'float64') for f in X]
+    data = np.array(data)
+
+    # Nomalize data
+    if subtract_mean:
+        mean_image = np.mean(data, axis=0)
+
+    return data - mean_image
+
+def get_minibatches(data, labels, minibatch_size, shuffle=True, resize=(32,32)):
+    '''
+    Genreate the mini batches
+    '''
+    data_size = data.shape[0]
+    indicies = np.arange(data_size)
+    if shuffle:
+        np.random.shuffle(indicies)
+    for start_idx in range(0, data_size, minibatch_size):
+        idx = indicies[start_idx : start_idx + minibatch_size]
+        yield load_image(data[idx], resize), labels[idx]
+
 if __name__ == '__main__':
-    load_data('datasets', resize=(64,64))
+    '''
+    For testing purpose
+    '''
+    X_tr, Y_tr, X_val, Y_val, X_te = load_data('datasets')
+
+    print(X_tr[:64])
+
+    print(load_image(X_tr[:64]).shape)

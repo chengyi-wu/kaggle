@@ -3,7 +3,7 @@ import logging,math
 import numpy as np
 from utils import Progbar
 from model import Model
-from data_utils import load_data
+from data_utils import load_data, get_minibatches
 
 class Cats_Model(Model):
     def __init__(self):
@@ -34,19 +34,22 @@ class Cats_Model(Model):
         Setup the VGG model here
         ''' 
         is_training = self.training_placeholder
+
+        # CONV3-64
         a = tf.contrib.layers.conv2d(
             inputs=self.input_placeholder,
             num_outputs=64,
             kernel_size=3,
             stride=1,
-            activation_fn=None,
+            activation_fn=None
         )
         a = tf.contrib.layers.batch_norm(
             inputs=a,
             center=True,
-            is_training=is_training
+            scale=False,
+            is_training=is_training,
+            activation_fn=tf.nn.relu
         )
-        a = tf.nn.relu(a)
         a = tf.contrib.layers.conv2d(
             inputs=a,
             num_outputs=64,
@@ -57,16 +60,17 @@ class Cats_Model(Model):
         a = tf.contrib.layers.batch_norm(
             inputs=a,
             center=True,
-            is_training=is_training
+            scale=False,
+            is_training=is_training,
+            activation_fn=tf.nn.relu
         )
-        a = tf.nn.relu(a)
         h = tf.contrib.layers.max_pool2d(
             inputs=a,
             kernel_size=2,
             stride=2,
         ) # 16 * 16 * 64
-        h = tf.nn.dropout(h, self.dropout_placeholder)
 
+        # CONV3-128
         a = tf.contrib.layers.conv2d(
             inputs=h,
             num_outputs=128,
@@ -77,9 +81,10 @@ class Cats_Model(Model):
         a = tf.contrib.layers.batch_norm(
             inputs=a,
             center=True,
-            is_training=is_training
+            scale=False,
+            is_training=is_training,
+            activation_fn=tf.nn.relu
         )
-        a = tf.nn.relu(a)
         a = tf.contrib.layers.conv2d(
             inputs=a,
             num_outputs=128,
@@ -90,19 +95,75 @@ class Cats_Model(Model):
         a = tf.contrib.layers.batch_norm(
             inputs=a,
             center=True,
-            is_training=is_training
+            scale=False,
+            is_training=is_training,
+            activation_fn=tf.nn.relu
         )
-        a = tf.nn.relu(a)
         h = tf.contrib.layers.max_pool2d(
             inputs=a,
             kernel_size=2,
             stride=2,
         ) # 8 * 8 * 128
+
+        # CONV3-256
+        a = tf.contrib.layers.conv2d(
+            inputs=h,
+            num_outputs=256,
+            kernel_size=3,
+            stride=1,
+            activation_fn=None,
+        )
+        a = tf.contrib.layers.batch_norm(
+            inputs=a,
+            center=True,
+            scale=False,
+            is_training=is_training,
+            activation_fn=tf.nn.relu
+        )
+        a = tf.contrib.layers.conv2d(
+            inputs=a,
+            num_outputs=256,
+            kernel_size=3,
+            stride=1,
+            activation_fn=None,
+        )
+        a = tf.contrib.layers.batch_norm(
+            inputs=a,
+            center=True,
+            scale=False,
+            is_training=is_training,
+            activation_fn=tf.nn.relu
+        )
+        a = tf.contrib.layers.conv2d(
+            inputs=a,
+            num_outputs=256,
+            kernel_size=3,
+            stride=1,
+            activation_fn=None,
+        )
+        a = tf.contrib.layers.batch_norm(
+            inputs=a,
+            center=True,
+            scale=False,
+            is_training=is_training,
+            activation_fn=tf.nn.relu
+        )
+        h = tf.contrib.layers.max_pool2d(
+            inputs=a,
+            kernel_size=2,
+            stride=2,
+        ) # 4 * 4 * 256
         
-        h_flat = tf.reshape(h, shape=(-1, 8 * 8 * 128))
+        h_flat = tf.contrib.layers.flatten(h)
 
         y_out = tf.contrib.layers.fully_connected(
             inputs=h_flat,
+            num_outputs=1024,
+            activation_fn=None
+        )
+
+        y_out = tf.contrib.layers.fully_connected(
+            inputs=y_out,
             num_outputs=2,
             activation_fn=None
         )
@@ -163,17 +224,8 @@ class Cats_Model(Model):
             print("\nEpoch {:} out of {:}".format(epoch + 1, epoches))
             self.run_epoch(sess, batch_size, training_set, validation_set, dropout)
 
-def get_minibatches(data, labels, minibatch_size, shuffle=True):
-    data_size = data.shape[0]
-    indicies = np.arange(data_size)
-    if shuffle:
-        np.random.shuffle(indicies)
-    for start_idx in range(0, data_size, minibatch_size):
-        idx = indicies[start_idx : start_idx + minibatch_size]
-        yield data[idx], labels[idx]
-
 def main(debug=True):
-    X_tr, Y_tr, X_val, Y_val, X_te = load_data('datasets', resize=(32, 32))
+    X_tr, Y_tr, X_val, Y_val, X_te = load_data('datasets')
 
     tf.reset_default_graph()
 
@@ -188,7 +240,7 @@ def main(debug=True):
                 64,
                 (X_tr, Y_tr),
                 (X_val, Y_val),
-                .6
+                1.0
             )
     print("")
 
