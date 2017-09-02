@@ -36,6 +36,13 @@ def load_data(data_folder, num_training_ratio=0.8):
     X = np.array(X)
     Y = np.array(Y)
 
+    data_size = X.shape[0]
+
+    indicies = np.arange(data_size)
+    np.random.shuffle(indicies)
+    X = X[indicies]
+    Y = Y[indicies]
+
     X_te = []
     Y_te = []
     for f in os.listdir(testing_folder):
@@ -46,19 +53,19 @@ def load_data(data_folder, num_training_ratio=0.8):
     X_te = np.array(X_te)
     Y_te = np.array(Y_te)
     
-    num_training = int(num_training_ratio * len(X))
+    num_training = int(num_training_ratio * data_size)
     mask = range(num_training)
 
     X_tr = X[mask]
     Y_tr = Y[mask]
 
-    mask = range(num_training, len(X))
+    mask = range(num_training, data_size)
     X_val = X[mask]
     Y_val = Y[mask]
 
     return X_tr, Y_tr, X_val, Y_val, X_te, Y_te
 
-def load_image(X, resize=(32,32), subtract_mean=True):
+def load_image(X, resize=(32,32), normalize=False):
     '''
     Layze image loading
     '''
@@ -66,10 +73,11 @@ def load_image(X, resize=(32,32), subtract_mean=True):
     data = np.array(data)
 
     # Nomalize data
-    if subtract_mean:
+    if normalize:
         mean_image = np.mean(data, axis=0)
-
-    return data - mean_image
+        std_imamge = np.std(data, axis=0)
+        return (data - mean_image) / std_imamge
+    return data
 
 def get_minibatches(data, labels, minibatch_size, shuffle=True, resize=(32,32)):
     '''
@@ -87,8 +95,13 @@ if __name__ == '__main__':
     '''
     For testing purpose
     '''
-    X_tr, Y_tr, X_val, Y_val, X_te = load_data('datasets')
+    X_tr, Y_tr, X_val, Y_val, X_te, _ = load_data('datasets')
 
-    print(X_tr[:64])
+    print(X_tr.shape)
+    print(Y_tr.shape)
+    print(X_val.shape)
+    print(Y_val.shape)
 
-    print(load_image(X_tr[:64]).shape)
+    for i, (x, y) in enumerate(get_minibatches(X_val, Y_val, 16, True)):
+        print(x, y)
+        break
