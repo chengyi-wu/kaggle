@@ -37,12 +37,15 @@ def load_data(data_folder, num_training_ratio=0.8):
     Y = np.array(Y)
 
     X_te = []
+    Y_te = []
     for f in os.listdir(testing_folder):
         # img = Image.open(os.path.join(testing_folder, f)).resize(size=resize, resample=Image.ANTIALIAS)
         # X_te.append(np.asarray(img, dtype='float64'))
-        X_te.append(os.path.join(training_folder, f))
+        X_te.append(os.path.join(testing_folder, f))
+        Y_te.append(os.path.join(testing_folder, f))
     X_te = np.array(X_te)
-
+    Y_te = np.array(Y_te)
+    
     num_training = int(num_training_ratio * len(X))
     mask = range(num_training)
 
@@ -53,7 +56,7 @@ def load_data(data_folder, num_training_ratio=0.8):
     X_val = X[mask]
     Y_val = Y[mask]
 
-    return X_tr, Y_tr, X_val, Y_val, X_te
+    return X_tr, Y_tr, X_val, Y_val, X_te, Y_te
 
 def load_image(X, resize=(32,32), subtract_mean=True):
     '''

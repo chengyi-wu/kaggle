@@ -2,19 +2,26 @@ import tensorflow as tf
 import logging,math
 import numpy as np
 from utils import Progbar
-from model import Model
+from vgg16 import vgg16
 from data_utils import get_CIFAR10_data
 
-class CIFAR_Model(Model):
+class CIFAR_Model(vgg16.Vgg16):
     def __init__(self):
         self.input_placeholder = None
         self.labels_placeholder = None
         self.dropout_placeholder = None
         self.training_placeholder = None
+        self.trainable_varilables = []
         self.build()
 
+    def build(self):
+        self.add_placeholders()
+        self.pred = self.add_prediction_op()
+        self.loss, self.correct_prediction, self.accuracy = self.add_loss_op(self.pred)
+        self.train_op = self.add_training_op(self.loss)
+
     def add_placeholders(self):
-        self.input_placeholder = tf.placeholder(dtype=tf.float32, shape=(None, 32, 32, 3), name='X')
+        self.input_placeholder = tf.placeholder(dtype=tf.float32, shape=(None, 224, 224, 3), name='X')
         self.labels_placeholder = tf.placeholder(dtype=tf.int64, shape=(None), name='y')
         self.dropout_placeholder = tf.placeholder(tf.float32)
         self.training_placeholder = tf.placeholder(tf.bool)
@@ -22,7 +29,6 @@ class CIFAR_Model(Model):
     def create_feed_dict(self, inputs_batch, labels_batch=None, dropout=1, is_training=True):
         feed_dict = {
             self.input_placeholder : inputs_batch,
-            self.dropout_placeholder : dropout,
             self.training_placeholder : is_training,
         }
         if labels_batch is not None:
@@ -34,124 +40,20 @@ class CIFAR_Model(Model):
         Setup the VGG model here
         ''' 
         is_training = self.training_placeholder
-        a = tf.contrib.layers.conv2d(
-            inputs=self.input_placeholder,
-            num_outputs=64,
-            kernel_size=3,
-            stride=1,
-            activation_fn=None,
-        )
-        a = tf.contrib.layers.batch_norm(
-            inputs=a,
-            center=True,
-            is_training=is_training
-        )
-        a = tf.nn.relu(a)
-        a = tf.contrib.layers.conv2d(
-            inputs=a,
-            num_outputs=64,
-            kernel_size=3,
-            stride=1,
-            activation_fn=None,
-        )
-        a = tf.contrib.layers.batch_norm(
-            inputs=a,
-            center=True,
-            is_training=is_training
-        )
-        a = tf.nn.relu(a)
-        h = tf.contrib.layers.max_pool2d(
-            inputs=a,
-            kernel_size=2,
-            stride=2,
-        ) # 16 * 16 * 64
-        h = tf.nn.dropout(h, self.dropout_placeholder)
-
-        a = tf.contrib.layers.conv2d(
-            inputs=h,
-            num_outputs=128,
-            kernel_size=3,
-            stride=1,
-            activation_fn=None,
-        )
-        a = tf.contrib.layers.batch_norm(
-            inputs=a,
-            center=True,
-            is_training=is_training
-        )
-        a = tf.nn.relu(a)
-        a = tf.contrib.layers.conv2d(
-            inputs=a,
-            num_outputs=128,
-            kernel_size=3,
-            stride=1,
-            activation_fn=None,
-        )
-        a = tf.contrib.layers.batch_norm(
-            inputs=a,
-            center=True,
-            is_training=is_training
-        )
-        a = tf.nn.relu(a)
-        h = tf.contrib.layers.max_pool2d(
-            inputs=a,
-            kernel_size=2,
-            stride=2,
-        ) # 8 * 8 * 128
-        h = tf.nn.dropout(h, self.dropout_placeholder)
-
-        a = tf.contrib.layers.conv2d(
-            inputs=h,
-            num_outputs=256,
-            kernel_size=3,
-            stride=1,
-            activation_fn=None,
-        )
-        a = tf.contrib.layers.batch_norm(
-            inputs=a,
-            center=True,
-            is_training=is_training
-        )
-        a = tf.nn.relu(a)
-        a = tf.contrib.layers.conv2d(
-            inputs=a,
-            num_outputs=256,
-            kernel_size=3,
-            stride=1,
-            activation_fn=None,
-        )
-        a = tf.contrib.layers.batch_norm(
-            inputs=a,
-            center=True,
-            is_training=is_training
-        )
-        a = tf.nn.relu(a)
-        a = tf.contrib.layers.conv2d(
-            inputs=a,
-            num_outputs=256,
-            kernel_size=3,
-            stride=1,
-            activation_fn=None,
-        )
-        a = tf.contrib.layers.batch_norm(
-            inputs=a,
-            center=True,
-            is_training=is_training
-        )
-        a = tf.nn.relu(a)
-        h = tf.contrib.layers.max_pool2d(
-            inputs=a,
-            kernel_size=2,
-            stride=2,
-        ) # 4 * 4 * 256
         
-        h_flat = tf.reshape(h, shape=(-1, 4 * 4 * 256))
+        y_out = super(CIFAR_Model, self).add_prediction_op()
 
-        y_out = tf.contrib.layers.fully_connected(
-            inputs=h_flat,
-            num_outputs=10,
-            activation_fn=None
+        y_out = tf.contrib.layers.batch_norm(
+            inputs=y_out,
+            center=True,
+            activation_fn=tf.nn.relu,
+            is_training=is_training
         )
+
+        fc9_W = tf.get_variable("fc9_W", shape=(1000, 10), initializer=tf.contrib.layers.xavier_initializer())
+        fc9_b = tf.get_variable("fc9_b", shape=(10), initializer=tf.zeros_initializer())
+        self.trainable_varilables += [fc9_W, fc9_b]
+        return tf.matmul(y_out, fc9_W) + fc9_b
         
         return y_out
 
@@ -198,11 +100,12 @@ class CIFAR_Model(Model):
             prog.update(i + 1, [('train loss', loss), ('train_acc', np.sum(corr) / train_x.shape[0])])
 
         val_loss, val_corr = 0, 0
-        for (val_x, val_y) in get_minibatches(X_val, Y_val, batch_size, False):
+        for i, (val_x, val_y) in enumerate(get_minibatches(X_val, Y_val, batch_size, False, resize)):
             loss, corr = self.train_on_batch(sess, val_x, val_y, False)
             val_loss += loss
             val_corr += np.sum(corr)
-        print("Validation loss = {0:.3g} and accuracy = {1:.3g}".format(val_loss, val_corr / X_val.shape[0]))
+            prog.update(i + 1, [('val_loss', loss), ('val_acc', np.sum(corr) / val_x.shape[0])])
+        print("Validation loss = {0:.3g} and accuracy = {1:.3g}".format(val_loss / X_val.shape[0], val_corr / X_val.shape[0]))
         
     def fit(self, sess, epoches, batch_size, training_set, validation_set, dropout):
         for epoch in range(epoches):
