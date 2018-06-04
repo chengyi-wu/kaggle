@@ -1,0 +1,6 @@
+raw/
+train/
+val/
+test/
+*.csv
+*.zip
