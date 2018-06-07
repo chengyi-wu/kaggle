@@ -4,20 +4,28 @@ import time
 from datetime import timedelta
 import numpy as np
 
-def evaluate(model, loader):
+def get_duration(start_time):
+    return timedelta(seconds=time.time() - start_time)
+
+def get_device():
+    return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+def evaluate(model, loader, device = None):
     print("Evaluate on %d batches" % (len(loader)))
+    if not device:
+        device = get_device()
     model.eval()
     log_preds = []
     preds = []
     for x, _ in loader:
-        x = x.cuda()
+        x = x.to(device)
         scores = model(x)
         log_preds += scores.data.tolist()
         _, y_preds = scores.data.max(1)
         preds += y_preds.tolist()
     return np.array(log_preds), np.array(preds)
 
-def validate(model, val_loder, loss_fn):
+def validate(model, val_loder, loss_fn, device):
     model.eval()
     num_samples = 0
     num_correct = 0
@@ -35,11 +43,15 @@ def validate(model, val_loder, loss_fn):
     val_loss /= num_samples
     return val_loss, val_acc
 
-def train(model, train_loader, loss_fn, optimizer, num_epochs = 1, val_loader = None):
+def train(model, train_loader, loss_fn, optimizer, num_epochs = 1, val_loader = None, device = None):
     if val_loader is not None:
         print("Train on %d batches, validate on %d batches" % (len(train_loader), len(val_loader)))
     else:
         print("Train on %d batches" % (len(train_loader)))
+
+    if not device:
+        device = get_device()
+
     for epoch in range(num_epochs):
         epoch_start = time.time()
         num_samples = 0
@@ -47,8 +59,8 @@ def train(model, train_loader, loss_fn, optimizer, num_epochs = 1, val_loader = 
         train_loss = 0
         model.train()
         for x, y in train_loader:
-            x = x.cuda()
-            y = y.cuda()
+            x = x.to(device)
+            y = y.to(device)
 
             scores = model(x)
             if isinstance(scores, tuple):
@@ -68,21 +80,21 @@ def train(model, train_loader, loss_fn, optimizer, num_epochs = 1, val_loader = 
         
         train_acc = float(num_correct) / num_samples
         train_loss /= num_samples
-        duration = timedelta(seconds=time.time() - epoch_start)
+
         stats = "[Epoch %d / %d] loss = %.4f, acc = %.2f" % (
                 epoch + 1, num_epochs,
                 train_loss, train_acc * 100,
                 )
 
         if val_loader:
-            val_loss, val_acc = validate(model, val_loader, loss_fn)
+            val_loss, val_acc = validate(model, val_loader, loss_fn, device)
             duration = timedelta(seconds=time.time() - epoch_start)
             print("%s, val_loss = %.4f, val_acc = %.2f, duration = %s"  % (
                 stats,
                 val_loss, val_acc * 100,
-                duration
+                get_duration(epoch_start)
             ))
         else:
-            print("%s, duration = %s" % (stats, duration))
+            print("%s, duration = %s" % (stats, get_duration(epoch_start)))
 
         
