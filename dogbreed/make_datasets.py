@@ -26,7 +26,11 @@ def make_datasets():
     raw_dir = os.path.join(os.getcwd(), 'datasets', 'raw')
     files = {f[:f.index('.')]:os.path.join(raw_dir, f) for f in sorted(os.listdir(raw_dir))}
     train_dir = os.path.join(os.getcwd(), 'datasets', 'train')
+    if os.path.exists(train_dir):
+        os.mkdir(train_dir)
     val_dir = os.path.join(os.getcwd(), 'datasets', 'val')
+    if os.path.exists(val_dir):
+        os.mkdir(val_dir)
     if not os.path.exists(train_dir):
         os.mkdir(train_dir)
     if not os.path.exists(val_dir):
@@ -48,7 +52,28 @@ def make_datasets():
                 target = os.path.join(val_class_dir, str(i) + ext)
             if not os.path.exists(target):
                 os.symlink(f, target)
-            print("%s => %s" % (f, target))
+                print("%s => %s" % (f, target))
+
+def aug_datasets():
+    raw_dir = os.path.join(os.getcwd(), 'datasets', 'Images')
+    aug_dir = os.path.join(os.getcwd(), 'datasets', 'aug')
+    if not os.path.exists(aug_dir):
+        os.mkdir(aug_dir)
+    for dir in os.listdir(raw_dir):
+        class_name = dir.lower()[dir.index('-') + 1:]
+        aug_class_dir = os.path.join(aug_dir, class_name)
+        if not os.path.exists(aug_class_dir):
+            os.mkdir(aug_class_dir)
+        for f in os.listdir(os.path.join(raw_dir, dir)):
+            src = os.path.join(raw_dir, dir, f)
+            dst = os.path.join(aug_class_dir, f)
+            if not os.path.exists(dst):
+                os.symlink(src, dst)
+                print("%s => %s" % (src, dst))
+            else:
+                os.unlink(dst)
+                print("UNLK: %s" % dst)
                 
 if __name__ == '__main__':
-    make_datasets()
+    # make_datasets()
+    aug_datasets()
